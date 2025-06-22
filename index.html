@@ -749,16 +749,11 @@
         </div>
     </div>
 
-    <!-- Admin Panel Modal -->
-    <div id="adminModal" class="modal">
-        <div class="modal-content">
-            <span class="close-modal">&times;</span>
-            <h2>Admin Panel Access</h2>
-            <p>Enter the admin password to continue:</p>
-            <input type="password" id="adminPassword" placeholder="Enter password" class="modal-input">
-            <div class="error-message" id="adminError"></div>
-            <button id="submitAdmin" class="btn">Submit</button>
-        </div>
+    <!-- Admin Panel Link (only visible to admins) -->
+    <div id="adminLink" style="display: none; position: fixed; bottom: 20px; right: 20px;">
+        <a href="panel.html" class="btn btn-primary" style="padding: 10px 20px; border-radius: 50px;">
+            <i class="fas fa-cog"></i> Admin Panel
+        </a>
     </div>
 
     <style>
@@ -854,73 +849,174 @@
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
 
-        // Admin Panel Functionality
-        const adminModal = document.getElementById('adminModal');
-        const adminPasswordInput = document.getElementById('adminPassword');
-        const adminError = document.getElementById('adminError');
-        const submitAdminBtn = document.getElementById('submitAdmin');
-        const closeModal = document.querySelector('.close-modal');
-
-        // Show modal function
-        function showAdminModal() {
-            adminModal.style.display = 'flex';
-            adminPasswordInput.focus();
-        }
-
-        // Hide modal function
-        function hideAdminModal() {
-            adminModal.style.display = 'none';
-            adminPasswordInput.value = '';
-            adminError.textContent = '';
-        }
-
-        // Check password (password is 'knw')
-        function checkAdminPassword() {
-            const password = adminPasswordInput.value.trim();
-            if (password === 'knw') {
-                // Set admin session flag
-                sessionStorage.setItem('adminAuthenticated', 'true');
-                // Redirect to panel.html on success
-                window.location.href = 'panel.html';
-            } else {
-                adminError.textContent = 'Incorrect password. Try again.';
-                adminPasswordInput.focus();
+        // Handle user redirection based on status
+        async function handleUserRedirect(user) {
+            try {
+                const userRef = firebase.database().ref('users/' + user.uid);
+                const snapshot = await userRef.once('value');
+                const userData = snapshot.val();
+                
+                if (userData.isAdmin) {
+                    // Admins go to panel
+                    window.location.href = 'panel.html';
+                } else if (userData.isApproved) {
+                    // Approved users go to dashboard
+                    window.location.href = 'dashboard.html';
+                } else {
+                    // Waitlisted users see the waitlist message
+                    showWaitlistModal(user.email);
+                }
+            } catch (error) {
+                console.error('Error handling user redirect:', error);
+                // If there's an error, redirect to login as fallback
+                await auth.signOut();
+                window.location.href = 'index.html';
             }
         }
-
-        // Check if already authenticated
-        if (sessionStorage.getItem('adminAuthenticated') === 'true') {
-            window.location.href = 'panel.html';
+        
+        // Show waitlist modal with polling for approval
+        function showWaitlistModal(email) {
+            const user = auth.currentUser;
+            if (!user) return;
+            
+            // Store user ID in localStorage for persistence
+            localStorage.setItem('pendingApprovalUid', user.uid);
+            
+            // Start polling for approval status
+            const pollInterval = setInterval(() => {
+                checkApprovalStatus(user.uid)
+                    .then(isApproved => {
+                        if (isApproved) {
+                            clearInterval(pollInterval);
+                            // Close the current modal if open
+                            if (Swal.isVisible()) {
+                                Swal.close();
+                            }
+                            // Redirect to dashboard
+                            window.location.href = 'dashboard.html';
+                        }
+                    });
+            }, 5000); // Check every 5 seconds
+            
+            // Show the waitlist modal
+            Swal.fire({
+                title: 'Account Pending Approval',
+                html: `
+                    <div class="waitlist-container">
+                        <p>Thank you for signing up! Your account <strong>${email}</strong> is currently on the waitlist.</p>
+                        <p>You will be automatically redirected once your account is approved by an administrator.</p>
+                        <div class="loading-spinner">
+                            <div class="spinner"></div>
+                            <p>Checking approval status...</p>
+                        </div>
+                    </div>
+                `,
+                icon: 'info',
+                showConfirmButton: false,
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showCancelButton: false,
+                willOpen: () => {
+                    // Add custom styles for the loading spinner
+                    const style = document.createElement('style');
+                    style.textContent = `
+                        .waitlist-container {
+                            text-align: center;
+                            padding: 10px;
+                        }
+                        .loading-spinner {
+                            margin: 20px 0;
+                        }
+                        .spinner {
+                            width: 40px;
+                            height: 40px;
+                            margin: 0 auto 10px;
+                            border: 4px solid #f3f3f3;
+                            border-top: 4px solid #10B981;
+                            border-radius: 50%;
+                            animation: spin 1s linear infinite;
+                        }
+                        @keyframes spin {
+                            0% { transform: rotate(0deg); }
+                            100% { transform: rotate(360deg); }
+                        }
+                    `;
+                    document.head.appendChild(style);
+                }
+            });
+            
+            // Store the interval ID to clear it later if needed
+            window.waitlistPollingInterval = pollInterval;
+        }
+        
+        // Check if user is approved
+        async function checkApprovalStatus(uid) {
+            try {
+                const snapshot = await firebase.database().ref('users/' + uid).once('value');
+                const userData = snapshot.val();
+                return userData && userData.isApproved === true;
+            } catch (error) {
+                console.error('Error checking approval status:', error);
+                return false;
+            }
+        }
+        
+        // Check if user is admin and show/hide admin panel link
+        function checkAdminStatus(user) {
+            if (!user) return;
+            
+            const userRef = firebase.database().ref('users/' + user.uid);
+            userRef.once('value').then(snapshot => {
+                const userData = snapshot.val();
+                const isAdmin = !!(userData && userData.isAdmin);
+                
+                if (isAdmin) {
+                    document.getElementById('adminLink').style.display = 'block';
+                }
+            }).catch(error => {
+                console.error('Error checking admin status:', error);
+            });
         }
 
-        // Event Listeners
-        document.addEventListener('keydown', (e) => {
-            // Check for Ctrl+H
+        // Check if user is already authenticated
+        auth.onAuthStateChanged(async (user) => {
+            if (user) {
+                // Check if this is a returning user who was waiting for approval
+                const pendingUid = localStorage.getItem('pendingApprovalUid');
+                if (pendingUid === user.uid) {
+                    const isApproved = await checkApprovalStatus(user.uid);
+                    if (isApproved) {
+                        localStorage.removeItem('pendingApprovalUid');
+                        window.location.href = 'dashboard.html';
+                        return;
+                    }
+                }
+                // User is signed in, check their status
+                handleUserRedirect(user);
+            } else {
+                // Clear any pending approval state if user signs out
+                localStorage.removeItem('pendingApprovalUid');
+            }
+        });
+
+        // Check auth state on page load
+        firebase.auth().onAuthStateChanged(function(user) {
+            if (user) {
+                // Update last login time
+                firebase.database().ref('users/' + user.uid).update({
+                    lastLogin: Date.now()
+                });
+                // Check admin status for showing admin panel link
+                checkAdminStatus(user);
+            }
+        });
+
+        // Keyboard shortcut for admin panel (Ctrl+H) - Now handled in panel.html
+        document.addEventListener('keydown', function(e) {
             if (e.ctrlKey && e.key.toLowerCase() === 'h') {
                 e.preventDefault();
-                showAdminModal();
-            }
-            // Check for Escape key
-            if (e.key === 'Escape') {
-                hideAdminModal();
-            }
-        });
-
-        // Submit on Enter key in password field
-        adminPasswordInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                checkAdminPassword();
-            }
-        });
-
-        // Button click handlers
-        submitAdminBtn.addEventListener('click', checkAdminPassword);
-        closeModal.addEventListener('click', hideAdminModal);
-
-        // Close modal when clicking outside the content
-        window.addEventListener('click', (e) => {
-            if (e.target === adminModal) {
-                hideAdminModal();
+                // Let the panel handle admin access
+                window.location.href = 'panel.html';
             }
         });
 
@@ -1006,35 +1102,13 @@
             const loginError = document.getElementById('loginError');
             
             // Reset errors
-            emailError.style.display = 'none';
-            passwordError.style.display = 'none';
             loginError.style.display = 'none';
-            
-            // Validate email
-            if (!validateEmail(email)) {
-                emailError.style.display = 'block';
-                return;
-            }
-            
-            // Validate password
-            if (password.length < 5) {
-                passwordError.style.display = 'block';
-                return;
-            }
             
             try {
                 // Sign in with email and password
                 const userCredential = await auth.signInWithEmailAndPassword(email, password);
-                // User is signed in
-                console.log('User logged in:', userCredential.user);
-                // You can redirect or update UI here
-                loginError.style.display = 'block';
-                loginError.style.color = '#4caf50';
-                loginError.textContent = 'Login successful! Redirecting...';
-                // Redirect to dashboard or home page after successful login
-                setTimeout(() => {
-                    window.location.href = 'dashboard.html';
-                }, 1500);
+                // Check user status and redirect accordingly
+                await handleUserRedirect(userCredential.user);
             } catch (error) {
                 console.error('Login error:', error);
                 loginError.style.display = 'block';
@@ -1046,8 +1120,8 @@
         document.getElementById('signupForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            const username = document.getElementById('signupUsername').value;
-            const email = document.getElementById('signupEmail').value;
+            const username = document.getElementById('signupUsername').value.trim();
+            const email = document.getElementById('signupEmail').value.trim().toLowerCase();
             const password = document.getElementById('signupPassword').value;
             const confirmPassword = document.getElementById('confirmPassword').value;
             
@@ -1057,30 +1131,38 @@
             const passwordError = document.getElementById('passwordError');
             const confirmPasswordError = document.getElementById('confirmPasswordError');
             const signupError = document.getElementById('signupError');
-            const signupSuccess = document.getElementById('signupSuccess');
             
-            // Reset errors
-            usernameError.style.display = 'none';
-            emailError.style.display = 'none';
-            passwordError.style.display = 'none';
-            confirmPasswordError.style.display = 'none';
-            signupError.style.display = 'none';
-            signupSuccess.style.display = 'none';
+            // Reset errors and messages
+            document.querySelectorAll('.error-message').forEach(el => {
+                el.style.display = 'none';
+                el.textContent = '';
+            });
+            
+            // Clear any previous success messages
+            const successMessages = document.querySelectorAll('.success-message');
+            successMessages.forEach(msg => msg.style.display = 'none');
             
             // Validate form
             let isValid = true;
             
             if (!validateUsername(username)) {
+                usernameError.textContent = 'Username must be at least 3 characters long';
                 usernameError.style.display = 'block';
                 isValid = false;
             }
             
-            if (!validateEmail(email)) {
+            if (!email.endsWith('@sbs.org')) {
+                emailError.textContent = 'Only @sbs.org email addresses are allowed';
+                emailError.style.display = 'block';
+                isValid = false;
+            } else if (!validateEmail(email)) {
+                emailError.textContent = 'Please enter a valid email address';
                 emailError.style.display = 'block';
                 isValid = false;
             }
             
-            if (!validatePassword(password)) {
+            if (password.length < 6) {
+                passwordError.textContent = 'Password must be at least 6 characters long';
                 passwordError.style.display = 'block';
                 isValid = false;
             }
@@ -1095,37 +1177,32 @@
             try {
                 // Create user with email and password
                 const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+                const user = userCredential.user;
                 
-                // Update user profile with username
-                await userCredential.user.updateProfile({
-                    displayName: username
-                });
-                
-                // Create user document in Firestore
-                await firebase.firestore().collection('users').doc(userCredential.user.uid).set({
-                    uid: userCredential.user.uid,
+                // Save additional user data to Realtime Database
+                const userData = {
+                    username: username,
                     email: email,
-                    displayName: username,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    lastLogin: firebase.firestore.FieldValue.serverTimestamp(),
-                    approved: false, // Default to false for admin approval
-                    role: 'user' // Default role
-                });
+                    createdAt: Date.now(),
+                    isAdmin: false,
+                    isApproved: false, // New users are not approved by default
+                    lastLogin: Date.now()
+                };
                 
-                // Show success message
-                signupSuccess.style.display = 'block';
-                signupSuccess.textContent = 'Account created successfully! Please wait for admin approval.';
-                document.getElementById('signupForm').reset();
+                await firebase.database().ref('users/' + user.uid).set(userData);
                 
-                // Sign out the user since they need admin approval
-                await auth.signOut();
+                // Show waitlist modal
+                showWaitlistModal(email);
                 
-                // Show login form
-                showSignInForm();
+                // Reset form and show success message
+                e.target.reset();
+                toggleForms(false); // Switch back to login form
                 
                 // Show success message on login form
-                document.getElementById('loginSuccess').style.display = 'block';
-                document.getElementById('loginSuccess').textContent = 'Account created! Please wait for admin approval.';
+                const loginSuccess = document.getElementById('loginSuccess');
+                loginSuccess.style.display = 'block';
+                loginSuccess.textContent = 'Account created! Please wait for admin approval.';
+                loginSuccess.style.color = '#4caf50';
                 
             } catch (error) {
                 console.error('Signup error:', error);
