@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Snacks - Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #10B981; /* Modern green */
+            --primary-dark: #059669; /* Darker green */
+            --primary-light: #D1FAE5; /* Light green for accents */
+            --secondary: #3B82F6; /* Blue for secondary actions */
+            --secondary-dark: #2563EB;
+            --text: #1F2937; /* Dark gray for text */
+            --text-light: #6B7280; /* Lighter gray for secondary text */
+            --background: #F9FAFB; /* Light gray background */
+            --white: #FFFFFF;
+            --error: #EF4444; /* Red for errors */
+            --warning: #F59E0B; /* Yellow for warnings */
+            --success: #10B981; /* Green for success */
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--background);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .dashboard-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 0;
+            border-bottom: 1px solid #E5E7EB;
+            margin-bottom: 30px;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        .user-menu {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .btn {
+            display: inline-block;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background-color 0.3s ease;
+        }
+
+        .btn:hover {
+            background-color: var(--primary-dark);
+        }
+
+        .btn-outline {
+            background-color: transparent;
+            border: 1px solid var(--primary);
+            color: var(--primary);
+        }
+
+        .btn-outline:hover {
+            background-color: rgba(16, 185, 129, 0.1);
+        }
+
+        .welcome-section {
+            text-align: center;
+            padding: 40px 20px;
+            background: linear-gradient(135deg, #F0FDF4 0%, #ECFDF5 100%);
+            border-radius: 12px;
+            margin-bottom: 40px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        .welcome-section h1 {
+            font-size: 36px;
+            margin-bottom: 16px;
+            color: var(--primary-dark);
+        }
+
+        .welcome-section p {
+            font-size: 18px;
+            color: var(--text-light);
+            max-width: 600px;
+            margin: 0 auto 30px;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+
+        .feature-card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+
+        .feature-icon {
+            font-size: 32px;
+            color: var(--primary);
+            margin-bottom: 16px;
+        }
+
+        .feature-card h3 {
+            font-size: 20px;
+            margin-bottom: 12px;
+            color: var(--text);
+        }
+
+        .feature-card p {
+            color: var(--text-light);
+            margin-bottom: 20px;
+        }
+
+        footer {
+            text-align: center;
+            padding: 30px 0;
+            margin-top: 60px;
+            border-top: 1px solid #E5E7EB;
+            color: var(--text-light);
+            font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+            .welcome-section h1 {
+                font-size: 28px;
+            }
+            
+            .welcome-section p {
+                font-size: 16px;
+            }
+            
+            .features {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <header>
+            <a href="#" class="logo">My Snacks</a>
+            <div class="user-menu">
+                <button id="logoutBtn" class="btn btn-outline">Log Out</button>
+            </div>
+        </header>
+
+        <main>
+            <section class="welcome-section">
+                <h1>Welcome to My Snacks!</h1>
+                <p>Test</p>
+                <a href="#" class="btn">nitung</a>
+            </section>
+
+      
+    <script type="module">
+        import { getAuth, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js';
+        import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js';
+        
+        // Initialize auth and db
+        let auth, db;
+        
+        // Check if auth is available in window object
+        if (window.auth && window.db) {
+            auth = window.auth;
+            db = window.db;
+            initializeDashboard();
+        } else {
+            // Fallback in case window.auth/db aren't set
+            const firebaseConfig = {
+                apiKey: "AIzaSyBZ-F3bIRCW-MvUJIyWJTaHVUN8yX5ZIPI",
+                authDomain: "snackstore-9d638.firebaseapp.com",
+                projectId: "snackstore-9d638"
+            };
+            
+            Promise.all([
+                import('https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js'),
+                import('https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js'),
+                import('https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js')
+            ]).then(([firebaseApp, firebaseAuth, firebaseFirestore]) => {
+                const app = firebaseApp.initializeApp(firebaseConfig);
+                auth = firebaseAuth.getAuth(app);
+                db = firebaseFirestore.getFirestore(app);
+                initializeDashboard();
+            }).catch(error => {
+                console.error('Error initializing Firebase:', error);
+            });
+        }
+
+        function initializeDashboard() {
+            // Check authentication state
+            onAuthStateChanged(auth, async (user) => {
+                if (!user) {
+                    // User is not signed in, redirect to login
+                    window.location.href = 'index.html';
+                    return;
+                }
+                
+                // Check if user is approved
+                try {
+                    const userDoc = await getDoc(doc(db, 'users', user.uid));
+                    if (!userDoc.exists() || !userDoc.data().approved) {
+                        // User not approved, redirect to waitlist
+                        window.location.href = 'waitlist.html';
+                        return;
+                    }
+                    
+                    // User is approved, show their name if available
+                    const userName = user.displayName || 'User';
+                    const welcomeHeading = document.querySelector('.welcome-section h1');
+                    if (welcomeHeading) {
+                        welcomeHeading.textContent = `Welcome, ${userName}!`;
+                    }
+                } catch (error) {
+                    console.error('Error checking user status:', error);
+                }
+            });
+
+            // Logout button
+            document.getElementById('logoutBtn').addEventListener('click', async () => {
+                try {
+                    await signOut(auth);
+                    window.location.href = 'index.html';
+                } catch (error) {
+                    console.error('Error signing out:', error);
+                    alert('Error signing out. Please try again.');
+                }
+            });
+        }
+    </script>
+</body>
+</html>
