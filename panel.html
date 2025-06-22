@@ -505,6 +505,10 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <style>
+        /* Hide body by default, show only after auth check */
+        body { display: none; }
+    </style>
     
     <script>
         // Firebase configuration
@@ -575,33 +579,49 @@
             });
         }
 
+        // Auth state and admin check
+        let authChecked = false;
+        let isAdmin = false;
+
         // Auth Functions
         function checkAuthState() {
             auth.onAuthStateChanged(user => {
-                if (user) {
-                    // User is signed in
-                    checkAdminStatus(user.uid);
-                } else {
+                if (!user) {
                     // User is signed out
-                    window.location.href = 'index.html';
+                    if (window.location.pathname.endsWith('panel.html')) {
+                        window.location.href = 'index.html';
+                    }
+                    return;
                 }
+                
+                // User is signed in, check admin status
+                checkAdminStatus(user.uid);
             });
         }
 
         function checkAdminStatus(uid) {
+            if (authChecked) return;
+            
             const userRef = database.ref('users/' + uid);
             userRef.once('value').then(snapshot => {
                 const userData = snapshot.val();
-                if (userData && userData.isAdmin) {
+                isAdmin = !!(userData && userData.isAdmin);
+                authChecked = true;
+                
+                if (isAdmin) {
                     // User is admin, load the data
                     loadUsers();
-                } else {
-                    // User is not admin, redirect to home
+                    // Show the admin panel content
+                    document.body.style.display = 'block';
+                } else if (window.location.pathname.endsWith('panel.html')) {
+                    // User is not admin and trying to access panel, redirect to index
                     window.location.href = 'index.html';
                 }
             }).catch(error => {
                 console.error('Error checking admin status:', error);
-                window.location.href = 'index.html';
+                if (window.location.pathname.endsWith('panel.html')) {
+                    window.location.href = 'index.html';
+                }
             });
         }
 
